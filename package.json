@@ -1,0 +1,29 @@
+{
+  "name": "gist-cli",
+  "description": "A gist cli client written in Node",
+  "version": "0.0.0",
+  "bin": {
+    "gist": "gist.js"
+  },
+  "dependencies": {
+    "ini": "1.1",
+    "opener": "1.3",
+    "read": "1.0 >=1.0.4",
+    "osenv": "0"
+  },
+  "readmeFilename": "README.md",
+  "devDependencies": {},
+  "repository": {
+    "type": "git",
+    "url": "git://github.com/isaacs/gist-cli"
+  },
+  "keywords": [
+    "gist",
+    "cli",
+    "command",
+    "line",
+    "client"
+  ],
+  "author": "Isaac Z. Schlueter <i@izs.me> (http://blog.izs.me)",
+  "license": "BSD"
+}
