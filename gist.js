@@ -19,6 +19,7 @@ var home = require('osenv').home()
 var authFile = home + '/.gist-login'
 var https = require('https')
 var read = require('read')
+var userAgent = 'node/gist-cli@' + require('./package.json').version
 
 var debug
 if (process.env.NODE_DEBUG && /\bgist\b/.exec(process.env.NODE_DEBUG)) {
@@ -122,6 +123,7 @@ function main() {
         headers: {
           host: 'api.github.com',
           authorization: 'token ' + auth.token,
+          'user-agent': userAgent,
           'content-length': body.length,
           'content-type': 'application/json'
         }
@@ -219,6 +221,7 @@ function getAuthFromCli(cb) {
         headers: {
           'content-type': 'application/json',
           'content-length': body.length,
+          'user-agent': userAgent,
           authorization: 'Basic ' +
             new Buffer(data.user + ':' + password).toString('base64')
         },
