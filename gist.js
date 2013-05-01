@@ -236,6 +236,12 @@ function getAuthFromCli(cb) {
         })
         res.on('end', function() {
           result = JSON.parse(result)
+          if (res.statusCode >= 400) {
+            debug('failed', res.statusCode, result)
+            var message = result.message || JSON.stringify(result)
+            return cb(new Error(message))
+          }
+          debug('ok', res.statusCode, result)
           data.token = result.token
           // just to make sure we don't waste this...
           if (files.length === 0)
