@@ -215,8 +215,8 @@ function getAuthFromCli(cb) {
   // can't read a file from stdin if we're reading login!
   stdin = false
   if (files.indexOf('-') !== -1) {
-    debug('warning: ignoring stdin because you need to auth')
-    files = files.filter(function(f) { return f !== '-' })
+    debug('error: gisting stdin and also reading auth on stdin')
+    process.exit(1)
   }
 
   var data = {}
