@@ -23,6 +23,9 @@ var read = require('read')
 var userAgent = 'node/gist-cli@' + require('./package.json').version
 var argUN = null
 var argPW = null
+var edit = false
+var prune = false
+var url = require('url')
 
 var debug
 if (process.env.NODE_DEBUG && /\bgist\b/.exec(process.env.NODE_DEBUG)) {
@@ -37,6 +40,12 @@ if (process.env.NODE_DEBUG && /\bgist\b/.exec(process.env.NODE_DEBUG)) {
 
 for (var a = 0; a < args.length; a++) {
   switch (args[a]) {
+    case '-e': case '--edit':
+      edit = args[++a]
+      break
+    case '--prune':
+      prune = true
+      break
     case '-u': case '--user': case '--username':
       argUN = args[++a]
       break
@@ -117,6 +126,11 @@ function main() {
     process.exit(1)
   }
 
+  if (prune && !edit) {
+    console.error('--prune requires a --edit argument')
+    process.exit(1)
+  }
+
   if (anon)
     getData(files, onData.bind(null, null))
   else
@@ -132,18 +146,32 @@ function onData(auth, er, data) {
   if (er)
     throw er
 
-  var body = new Buffer(JSON.stringify({
+  var body = {
     description: description,
     public: !private && !anon,
-    files: data
-  }))
+    files: data.files
+  }
+
+  if (data.edit) {
+    body.description = description || data.edit.description
+    body.public = data.edit.public
+    if (prune) {
+      for (var f in data.edit.files) {
+        if (!body.files[f])
+          body.files[f] = null
+      }
+    }
+  }
+
+  body = new Buffer(JSON.stringify(body))
+
   debug('body', body.toString())
 
   var opt = {
-    method: 'POST',
+    method: edit ? 'PATCH' : 'POST',
     host: 'api.github.com',
     port: 443,
-    path: '/gists',
+    path: '/gists' + (edit ? '/' + edit : ''),
     headers: {
       host: 'api.github.com',
       'user-agent': userAgent,
@@ -396,11 +424,19 @@ function saveAuth(data, cb) {
 }
 
 function getData(files, cb) {
-  var data = {}
+  var data = { files: {} }
   if (stdin && files.indexOf('-') === -1)
     files.push('-')
 
   var c = files.length
+  if (edit) {
+    c++
+    getEditData(function(er, editData) {
+      data.edit = editData
+      next(er)
+    })
+  }
+
   var errState = null
   var didStdin = false
   files.forEach(function (f) {
@@ -416,7 +452,7 @@ function getData(files, cb) {
           next(er)
         })
         process.stdin.on('end', function() {
-          data['gistfile.' + type] = { content: stdinData }
+          data.files['gistfile.' + type] = { content: stdinData }
           next()
         })
       }
@@ -425,7 +461,7 @@ function getData(files, cb) {
         if (er)
           next(er)
         else {
-          data[f.replace(/\\|\//g, '-')] = { content: fileData }
+          data.files[f.replace(/\\|\//g, '-')] = { content: fileData }
           next()
         }
       })
@@ -437,7 +473,33 @@ function getData(files, cb) {
       return
     else if (er)
       return cb(errState = er)
-    else if (--c === 0)
+    else if (--c === 0) {
       cb(null, data)
+    }
   }
+}
+
+function getEditData(cb) {
+  debug('getEditData %s', 'https://api.github.com/gists/' + edit)
+  var r = url.parse('https://api.github.com/gists/' + edit)
+  r.headers = {
+    'user-agent': userAgent,
+  }
+  https.get(r, function(res) {
+    debug('getEditData', res.statusCode, res.headers)
+    var j = ''
+    res.setEncoding('utf8')
+    res.on('data', function(c) {
+      j += c
+    })
+    res.on('end', function() {
+      debug(j)
+      j = JSON.parse(j)
+
+      if (res.statusCode !== 200)
+        cb(new Error('Invalid gist ID: ' + edit))
+      else
+        cb(null, j)
+    })
+  }).on('error', cb)
 }
