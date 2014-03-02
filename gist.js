@@ -8,6 +8,7 @@ var opener = require('opener')
 var copy = process.platform === 'darwin'
 var open = true
 var stdin = true
+var anon = false
 var type = 'txt'
 var files = []
 var doMain = true
@@ -66,6 +67,9 @@ for (var a = 0; a < args.length; a++) {
       help()
       doMain = false
       break
+    case '-a': case '--anon': case '--anonymous':
+      anon = true
+      break
     default:
       files.push(args[a])
       break
@@ -100,64 +104,80 @@ function version() {
 
 function main() {
   debug('main start')
-  getAuth(function(er, auth) {
-    debug('auth', er, auth)
-    if (er)
-      throw er
-    getData(files, function(er, data) {
+  if (anon && private) {
+    console.error('Cannot create private anonymous gists')
+    process.exit(1)
+  }
+
+  if (anon)
+    getData(files, onData.bind(null, null))
+  else
+    getAuth(function(er, auth) {
+      debug('auth', er, auth)
       if (er)
         throw er
-
-      var body = new Buffer(JSON.stringify({
-        description: description,
-        public: !private,
-        files: data
-      }))
-      debug('body', body.toString())
-
-      var opt = {
-        method: 'POST',
-        host: 'api.github.com',
-        port: 443,
-        path: '/gists',
-        headers: {
-          host: 'api.github.com',
-          authorization: 'token ' + auth.token,
-          'user-agent': userAgent,
-          'content-length': body.length,
-          'content-type': 'application/json'
-        }
-      }
-      debug('making request', opt)
-      var req = https.request(opt)
-      req.on('response', function (res) {
-        var result = ''
-        res.setEncoding('utf8')
-        res.on('data', function(c) {
-          result += c
-        })
-        res.on('end', function() {
-          result = JSON.parse(result)
-          var id = result.id
-          var user = auth.user
-          var url = 'https://gist.github.com/' + user + '/' + id
-          if (open)
-            opener(url)
-          if (copy)
-            copyUrl(url)
-          process.on('exit', function() {
-            console.log(url)
-          })
-        })
-
-        saveAuth(auth, function (er, result) {
-          if (er)
-            throw er
-        })
-      })
-      req.end(body)
+      getData(files, onData.bind(null, auth))
     })
+}
+
+function onData(auth, er, data) {
+  if (er)
+    throw er
+
+  var body = new Buffer(JSON.stringify({
+    description: description,
+    public: !private && !anon,
+    files: data
+  }))
+  debug('body', body.toString())
+
+  var opt = {
+    method: 'POST',
+    host: 'api.github.com',
+    port: 443,
+    path: '/gists',
+    headers: {
+      host: 'api.github.com',
+      'user-agent': userAgent,
+      'content-length': body.length,
+      'content-type': 'application/json'
+    }
+  }
+
+  if (!anon)
+    opt.headers.authorization = 'token ' + auth.token
+
+  debug('making request', opt)
+  var req = https.request(opt)
+  req.on('response', function (res) {
+    var result = ''
+    res.setEncoding('utf8')
+    res.on('data', function(c) {
+      result += c
+    })
+    res.on('end', function() {
+      result = JSON.parse(result)
+      debug('result', result)
+      var id = result.id
+      var user = auth && auth.user || 'anonymous'
+      var url = 'https://gist.github.com/' + user + '/' + id
+      if (open)
+        opener(url)
+      if (copy)
+        copyUrl(url)
+      process.on('exit', function() {
+        console.log(url)
+      })
+    })
+
+    if (auth) {
+      saveAuth(auth, function (er, result) {
+        if (er)
+          throw er
+      })
+    }
   })
+  req.end(body)
 }
 
 function copyUrl(url) {
