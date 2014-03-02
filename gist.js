@@ -21,6 +21,8 @@ var authFile = home + '/.gist-login'
 var https = require('https')
 var read = require('read')
 var userAgent = 'node/gist-cli@' + require('./package.json').version
+var argUN = null
+var argPW = null
 
 var debug
 if (process.env.NODE_DEBUG && /\bgist\b/.exec(process.env.NODE_DEBUG)) {
@@ -35,6 +37,12 @@ if (process.env.NODE_DEBUG && /\bgist\b/.exec(process.env.NODE_DEBUG)) {
 
 for (var a = 0; a < args.length; a++) {
   switch (args[a]) {
+    case '-u': case '--user': case '--username':
+      argUN = args[++a]
+      break
+    case '-P': case '--pass': case '--password':
+      argPW = args[++a]
+      break
     case '-c': case '--copy':
       copy = process.platform === 'darwin'
       break
@@ -185,6 +193,22 @@ function copyUrl(url) {
 }
 
 function getAuth(cb) {
+  var user = argUN
+  var pass = argPW
+  var argAuth = { user: argUN, pass: argPW }
+  if (user && pass) {
+    debug('auth on argv')
+    return tokenize({ user: argUN, pass: argPW }, cb)
+  }
+
+  if (user && !pass) {
+    debug('user on argv, password required')
+    return getPassFromCli(argAuth, function (er, auth) {
+      debug('getPassFromCli', er, auth)
+      done(er, auth)
+    })
+  }
+
   getAuthFromFile(authFile, function(er, auth) {
     debug('getAuthFromFile', er, auth)
     if (er)
@@ -207,14 +231,18 @@ function getAuth(cb) {
       return cb(er)
     auth.user = auth.user.trim()
     auth.token = auth.token.trim()
+    if (argAuth.user && auth.user !== argAuth.user) {
+      auth.user = argAuth.user
+      delete auth.token
+      auth.pass = argAuth.pass
+    }
     cb(er, auth)
   }
 }
 
 function getAuthFromCli(cb) {
   // can't read a file from stdin if we're reading login!
-  stdin = false
-  if (files.indexOf('-') !== -1) {
+  if (files.indexOf('-') !== -1 || stdin) {
     debug('error: gisting stdin and also reading auth on stdin')
     process.exit(1)
   }
@@ -224,61 +252,102 @@ function getAuthFromCli(cb) {
     if (er)
       return cb(er)
     data.user = user.trim()
-    read({ prompt: 'github.com password: ', silent: true }, function(er, password) {
-      if (er)
-        return cb(er)
-      password = password.trim()
-      // curl -u isaacs \
-      //   -d '{"scopes":["gist"],"note":"gist cli access"}' \
-      //   https://api.github.com/authorizations
-      var body = new Buffer(JSON.stringify({
-        scopes: [ 'gist' ],
-        note: 'gist cli access'
-      }))
-      var req = https.request({
-        method: 'POST',
-        host: 'api.github.com',
-        headers: {
-          'content-type': 'application/json',
-          'content-length': body.length,
-          'user-agent': userAgent,
-          authorization: 'Basic ' +
-            new Buffer(data.user + ':' + password).toString('base64')
-        },
-        path: '/authorizations'
-      })
-      var result = ''
-      req.on('response', function(res) {
-        res.on('error', cb)
-        res.setEncoding('utf8')
-        res.on('data', function(c) {
-          result += c
-        })
-        res.on('end', function() {
-          result = JSON.parse(result)
-          if (res.statusCode >= 400) {
-            debug('failed', res.statusCode, result)
-            var message = result.message || JSON.stringify(result)
-            return cb(new Error(message))
-          }
-          debug('ok', res.statusCode, result)
-          data.token = result.token
-          // just to make sure we don't waste this...
-          if (files.length === 0)
-            saveAuth(data, function(er) {
-              cb(er, data)
-            })
-          else
-            cb(null, data)
-        })
-      })
-      req.on('error', cb)
-      req.write(body)
-      req.end()
-    })
+    getPassFromCli(data, cb)
   })
 }
 
+function getPassFromCli(data, cb) {
+  if (files.indexOf('-') !== -1 || stdin) {
+    debug('error: gisting stdin and also reading auth on stdin')
+    process.exit(1)
+  }
+
+  read({ prompt: 'github.com password: ', silent: true }, function(er, password) {
+    if (er)
+      return cb(er)
+    password = password.trim()
+    data.pass = password
+    tokenize(data, cb)
+  })
+}
+
+function tokenize (data, cb) {
+  // curl -u isaacs \
+  //   -d '{"scopes":["gist"],"note":"gist cli access"}' \
+  //   https://api.github.com/authorizations
+  var body = new Buffer(JSON.stringify({
+    scopes: [ 'gist' ],
+    note: 'gist cli access'
+  }))
+  var r = {
+    method: 'POST',
+    host: 'api.github.com',
+    headers: {
+      'content-type': 'application/json',
+      'content-length': body.length,
+      'user-agent': userAgent,
+      authorization: 'Basic ' +
+        new Buffer(data.user + ':' + data.pass).toString('base64')
+    },
+    path: '/authorizations'
+  }
+
+  if (data.otp)
+    r.headers['X-GitHub-OTP'] = data.otp
+
+  var req = https.request(r)
+  var result = ''
+  req.on('response', function(res) {
+    res.on('error', cb)
+    res.setEncoding('utf8')
+    res.on('data', function(c) {
+      result += c
+    })
+    res.on('end', function() {
+      result = JSON.parse(result)
+      if (res.statusCode >= 400) {
+        debug('failed', res.statusCode, result)
+        var otp = res.headers['x-github-otp']
+        if (res.statusCode === 401 &&
+            !data.otp && otp && otp.match(/^required; /)) {
+          var type = otp.replace(/^required; /, '')
+          return getOTP(data, type, cb)
+        }
+        var message = result.message || JSON.stringify(result)
+        return cb(new Error(message))
+      }
+      debug('ok', res.statusCode, result)
+      data.token = result.token
+      // just to make sure we don't waste this...
+      if (files.length === 0)
+        saveAuth(data, function(er) {
+          cb(er, data)
+        })
+      else
+        cb(null, data)
+    })
+  })
+  req.on('error', cb)
+  req.write(body)
+  req.end()
+}
+
+function getOTP(data, type, cb) {
+  if (files.indexOf('-') !== -1 || stdin) {
+    debug('error: gisting stdin and also reading auth on stdin')
+    process.exit(1)
+  }
+
+  read({
+    prompt: 'two factor auth (' + type + '): ',
+    silent: true
+  }, function(er, otp) {
+    if (er)
+      return cb(er)
+    data.otp = otp.trim()
+    tokenize(data, cb)
+  })
+}
 
 function getAuthFromFile(authFile, cb) {
   // try to load from our file
