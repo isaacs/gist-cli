@@ -52,7 +52,7 @@ git config --global --add gist.username YOUR_GITHUB_USERNAME
 git config --global --add gist.token THAT_TOKEN_YOU_GOT
 ```
 
-Or write this to `~/.gist-auth`
+Or write this to `~/.gist-login`
 
 ```
 [gist]
@@ -60,6 +60,6 @@ Or write this to `~/.gist-auth`
   token = THAT_TOKEN_YOU_GOT
 ```
 
-Wherever gist finds the configs at, it'll stash them in `~/.gist-auth`
+Wherever gist finds the configs at, it'll stash them in `~/.gist-login`
 so that it doesn't get confused if you upgrade git or blow away other
 files, etc.
