@@ -121,11 +121,6 @@ function version() {
 
 function main() {
   debug('main start')
-  if (anon && private) {
-    console.error('Cannot create private anonymous gists')
-    process.exit(1)
-  }
-
   if (prune && !edit) {
     console.error('--prune requires a --edit argument')
     process.exit(1)
