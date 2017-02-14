@@ -1,7 +1,7 @@
 {
   "name": "gist-cli",
   "description": "A gist cli client written in Node",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "bin": {
     "gist": "gist.js"
   },
