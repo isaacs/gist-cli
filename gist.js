@@ -42,10 +42,10 @@ for (var a = 0; a < args.length; a++) {
   switch (args[a]) {
     case '-e': case '--edit':
       edit = args[++a]
-      var p = url.parse(edit)
+      var p = url.parse(edit || '')
       if (p && p.host)
-        p = p.pathname
-      edit = path.basename(p)
+        edit = p.pathname
+      edit = path.basename(edit)
       break
     case '--prune':
       prune = true
