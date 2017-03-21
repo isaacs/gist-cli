@@ -6,8 +6,8 @@
     "gist": "gist.js"
   },
   "dependencies": {
-    "ini": "1.1",
-    "opener": "1.3",
+    "ini": "1.3.4",
+    "opener": "1.4.1",
     "read": "1.0 >=1.0.4",
     "osenv": "0"
   },
