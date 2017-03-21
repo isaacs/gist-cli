@@ -48,7 +48,7 @@ It'll dump some JSON, which contains a token inside of it.
 You can put the configs in git like this:
 
 ```
-git config --global --add gist.username YOUR_GITHUB_USERNAME
+git config --global --add gist.user YOUR_GITHUB_USERNAME
 git config --global --add gist.token THAT_TOKEN_YOU_GOT
 ```
 
@@ -56,7 +56,7 @@ Or write this to `~/.gist-auth`
 
 ```
 [gist]
-  username = YOUR_GITHUB_USERNAME
+  user = YOUR_GITHUB_USERNAME
   token = THAT_TOKEN_YOU_GOT
 ```
 
