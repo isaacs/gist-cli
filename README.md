@@ -45,6 +45,10 @@ Then curl will ask for your password.
 
 It'll dump some JSON, which contains a token inside of it.
 
+If you are using two factor authentication `curl` won't work, then
+simply create a token at https://github.com/settings/tokens with
+only the `gist` scope selected.
+
 You can put the configs in git like this:
 
 ```
@@ -52,14 +56,14 @@ git config --global --add gist.username YOUR_GITHUB_USERNAME
 git config --global --add gist.token THAT_TOKEN_YOU_GOT
 ```
 
-Or write this to `~/.gist-auth`
+Or write this to `~/.gist-login`
 
 ```
 [gist]
-  username = YOUR_GITHUB_USERNAME
+  user = YOUR_GITHUB_USERNAME
   token = THAT_TOKEN_YOU_GOT
 ```
 
-Wherever gist finds the configs at, it'll stash them in `~/.gist-auth`
+Wherever gist finds the configs at, it'll stash them in `~/.gist-login`
 so that it doesn't get confused if you upgrade git or blow away other
 files, etc.
